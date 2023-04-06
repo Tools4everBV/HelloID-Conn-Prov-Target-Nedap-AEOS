@@ -16,7 +16,7 @@ $dateFormat ="yyyy-MM-ddTHH:mm:ss"
 $account = [PSCustomObject]@{
     Id = $aref
     ArrivalDateTime = $now.ToString($dateFormat)    # 2018-11-25T15:44:07 <!-- XSD DateTime data type format -->   2049-06-09T17:15:04+02:00 <!-- UTC+2 -->
-    LeaveDateTime = "2200-01-01T00:00:00"           # empty string does not clear value, so fill in a time far in the future.
+    LeaveDateTime = "2099-01-01T00:00:00"           # empty string does not clear value, so fill in a time far in the future.
 }
 
 # Enable TLS1.2
