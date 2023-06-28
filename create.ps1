@@ -141,6 +141,7 @@ function New-SoapbodyFindEmployee {
 
     Write-Output $soapFindEmployee.ToString()
 }
+
 function Invoke-Nedap-AEOSRestMethod {
     [CmdletBinding()]
     param (
@@ -265,7 +266,7 @@ try {
     # Verify if a user must be either [created and correlated], [updated and correlated] or just [correlated]
 
     $Soapbody = New-SoapbodyFindEmployee -account $account
-    $response = Invoke-Nedap-AEOSRestMethod   -SoapBody $Soapbody
+    $response = Invoke-Nedap-AEOSRestMethod -SoapBody $Soapbody
 
     $EmployeeInfo = $null;
     if ($null -ne $Response.Envelope.Body) {
@@ -278,6 +279,10 @@ try {
                 break
             }
         }
+    }
+
+    if (($EmployeeInfo | measure-object).count -gt 1) {
+        Throw "Multiple ($(($EmployeeInfo | measure-object).count)) employees with PersonnelNo [$($account.PersonnelNo)] found in AEOS"
     }
 
     if ($null -eq $EmployeeInfo) {
