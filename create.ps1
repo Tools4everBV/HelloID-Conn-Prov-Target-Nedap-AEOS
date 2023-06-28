@@ -310,14 +310,12 @@ try {
                 $accountReference = $account.Id
                 break
             }
-
             'Update-Correlate' {
                 Write-Verbose "Updating and correlating Nedap-AEOS account"
                 $account.Id = $EmployeeInfo.Id
                 $accountReference = $account.Id
                 $Soapbody = New-SoapbodyChangeEmployee  -account $account
                 $response = Invoke-Nedap-AEOSRestMethod -SoapBody $Soapbody
-
                 break
             }
             'Correlate' {
@@ -360,6 +358,11 @@ finally {
         AccountReference = $accountReference
         Auditlogs        = $auditLogs
         Account          = $account
+
+        #Optionally return data for use in other systems
+        ExportData       = [PSCustomObject]@{
+            AEOSid = $accountReference    
+        }
     }
     Write-Output $result | ConvertTo-Json -Depth 10
 }
