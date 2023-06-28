@@ -2,7 +2,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Nedap-AEOS-Create
 #
-# Version: 1.0.0
+# Version: 1.1.0
 #####################################################
 # Initialize default values
 $config = $configuration | ConvertFrom-Json
@@ -10,6 +10,59 @@ $p = $person | ConvertFrom-Json
 $success = $false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
 
+function New-AeosName {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [object]
+        $person
+    )
+
+    if ([string]::IsNullOrEmpty($person.Name.Initials)) {
+        $initials = $person.Name.Initials
+    }
+    else {
+        $initials = $person.Name.Initials[0..9] -join ""        # Max 10 chars
+    }
+
+    if ([string]::IsNullOrEmpty($person.Name.FamilyNamePrefix)) {
+        $prefix = ""
+    }
+    else {
+        $prefix = $person.Name.FamilyNamePrefix + " "
+    }
+
+    if ([string]::IsNullOrEmpty($person.Name.FamilyNamePartnerPrefix)) {
+        $partnerPrefix = ""
+    }
+    else {
+        $partnerPrefix = $person.Name.FamilyNamePartnerPrefix + " "
+    }
+
+    $AeosSurname = switch ($person.Name.Convention) {
+        "B" { $person.Name.FamilyName }
+        "BP" { $person.Name.FamilyName + " - " + $partnerprefix + $person.Name.FamilyNamePartner }
+        "P" { $person.Name.FamilyNamePartner }
+        "PB" { $person.Name.FamilyNamePartner + " - " + $prefix + $person.Name.FamilyName }
+        default { $prefix + $person.Name.FamilyName }
+    }
+
+    $AeosPrefix = switch ($person.Name.Convention) {
+        "B" { $prefix }
+        "BP" { $prefix }
+        "P" { $partnerPrefix }
+        "PB" { $partnerPrefix }
+        default { $prefix }
+    }
+
+    $output = [PSCustomObject]@{
+        prefixes = $AeosPrefix
+        surname  = $AeosSurname
+        initials = $Initials
+    }
+    Write-Output $output
+}
 # Account mapping
 # NOTE do not change de order of the attributes in the Account object, the AEOS API demands them in a specific order.
 $account = [PSCustomObject]@{
@@ -22,10 +75,10 @@ $account = [PSCustomObject]@{
     # NrMovements = $null
     # ReadOnly = $null
     # FreeField = $null                      # list of objects with free fields {DefinitionId,Name,Value}, currently not supported in this connector
-    LastName        = $p.Name.FamilyName         # <!-- String, max. 50 characters -->
+    LastName        = (New-AeosName -Person $p).surname        # <!-- String, max. 50 characters -->
     PersonnelNo     = $p.ExternalId              # <!-- String, max. 50 characters -->
     FirstName       = $p.Name.GivenName          # <!-- String, max. 40 characters -->
-    MiddleName      = $p.Name.FamilyNamePrefix
+    MiddleName      = (New-AeosName -Person $p).prefixes
     Gender          = "Unknown"                  # <!-- Male, Female, Unknown -->
     # Title = $null                          # <!-- String, max. 25 characters -->
     # PhoneNo = $null                        # <!-- String, max. 25 characters -->  <!-- Do not use spaces or hyphens if dialers (such as SMS servers)  need to process this phone number. -->
