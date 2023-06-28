@@ -31,6 +31,16 @@
         }
     },
     {
+        "key": "UpdateOnCorrelate",
+        "type": "checkbox",
+        "defaultValue": true,
+        "templateOptions": {
+            "label": "Update Person when correlating",
+            "description": "This will update the AEOS employee in the create action (not just correlate).",
+            "required": false
+        }
+    },
+    {
         "key": "IsDebug",
         "type": "checkbox",
         "defaultValue": true,

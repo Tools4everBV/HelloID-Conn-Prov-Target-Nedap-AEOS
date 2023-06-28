@@ -123,8 +123,7 @@ switch ($($config.IsDebug)) {
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
 
-# Set to true if accounts in the target system must be updated
-$updatePerson = $false
+$updatePerson = [boolean]($config.UpdateOnCorrelate)
 
 #region functions
 function New-SoapbodyFindEmployee {
