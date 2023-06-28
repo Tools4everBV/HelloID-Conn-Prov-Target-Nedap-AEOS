@@ -101,10 +101,9 @@ No special Prerequisites.
     # ' -f ($templates | Select-Object -First 1).DateFrom
 ```
 
+It is possible to update the account in the target system during the correlation process, this behavior is disabled. Meaning, the account will only be created or correlated.
 
-A new functionality is the possibility to update the account in the target system during the correlation process. By default, this behavior is disabled. Meaning, the account will only be created or correlated.
-
-You can change this behavior in the `create.ps1` by setting the boolean `$updatePerson` to the value of `$true`.
+You can change this behavior in the `configuration` by enabling the toggle `UpdateOnCorrelate`.
 
 > Be aware that this might have unexpected implications.
 
