@@ -55,7 +55,8 @@ try {
         Write-Verbose "Granting Nedap-AEOS entitlement: [$($pRef.DisplayName)]"
         if ($result.Envelope.Body.ProfileResult.AuthorisationOnline.TemplateAuthorisation.TemplateId -eq "$($pRef.Reference)") {
             Write-Verbose "[$($pRef.DisplayName)] Already granted, no action required"
-        } else {
+        }
+        else {
             [xml]$bodyAddAuth = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.nedap.com/aeosws/schema">
                <soapenv:Header/>
                <soapenv:Body>
@@ -95,18 +96,21 @@ try {
                 IsError = $false
             })
     }
-} catch {
+}
+catch {
     Write-Verbose "Error at Line '$($PSItem.InvocationInfo.ScriptLineNumber)': $($PSItem.InvocationInfo.Line). Error: $($PSItem.Exception.Message) $($PSItem.ErrorDetails)" -verbose
     if ([string]::IsNullOrEmpty($PSItem.ErrorDetails)) {
         $auditMessage = "Could not grant Nedap-AEOS account. Error: $($PSItem.Exception.Message)"
-    } else {
+    }
+    else {
         $auditMessage = "Could not grant Nedap-AEOS account. Error: $($PSItem.ErrorDetails)"
     }
     $auditLogs.Add([PSCustomObject]@{
             Message = $auditMessage
             IsError = $true
         })
-} finally {
+}
+finally {
     $result = [PSCustomObject]@{
         Success   = $success
         Auditlogs = $auditLogs

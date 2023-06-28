@@ -11,12 +11,12 @@ $success = $false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 $now = (Get-Date).ToUniversalTime()
-$dateFormat ="yyyy-MM-ddTHH:mm:ss"
+$dateFormat = "yyyy-MM-ddTHH:mm:ss"
 
 $account = [PSCustomObject]@{
-    Id = $aref
+    Id              = $aref
     ArrivalDateTime = $now.ToString($dateFormat)    # 2018-11-25T15:44:07 <!-- XSD DateTime data type format -->   2049-06-09T17:15:04+02:00 <!-- UTC+2 -->
-    LeaveDateTime = "2099-01-01T00:00:00"           # empty string does not clear value, so fill in a time far in the future.
+    LeaveDateTime   = "2099-01-01T00:00:00"           # empty string does not clear value, so fill in a time far in the future.
 }
 
 # Enable TLS1.2
@@ -36,7 +36,7 @@ function New-SoapbodyEnableEmployee {
         [PSCustomObject] $Account
     )
     $root = "sch:EmployeeChange"
-    Write-output ('<{1}>{0}</{1}>' -f $( $Account.PSObject.Properties.foreach{if($_.Name -eq "Id" -or $_.Name -eq "ArrivalDateTime" -or  $_.Name -eq "LeaveDateTime"){'  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value}} -join "`n") , $root)
+    Write-output ('<{1}>{0}</{1}>' -f $( $Account.PSObject.Properties.foreach{ if ($_.Name -eq "Id" -or $_.Name -eq "ArrivalDateTime" -or $_.Name -eq "LeaveDateTime") { '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value } } -join "`n") , $root)
 }
 function New-SoapbodyFindEmployee {
     [CmdletBinding()]
@@ -88,10 +88,10 @@ function Invoke-Nedap-AEOSRestMethod {
             $null = $BodySB.Append('</soapenv:Envelope>')
 
             $splatParams = @{
-                Uri    = $Uri
-                Method = $Method
+                Uri         = $Uri
+                Method      = $Method
                 ContentType = $ContentType
-                Body = $BodySB.ToString()
+                Body        = $BodySB.ToString()
             }
             if ($Headers) {
                 Write-Verbose 'Adding Headers to request'
@@ -130,20 +130,19 @@ function Resolve-Nedap-AEOSError {
             $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
         }
         elseif ($null -eq $ErrorObject.Exception.Response) {
-                $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
+            $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
         }
         else {
             $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
-            if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)){
+            if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)) {
                 $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
             }
-            else{
+            else {
                 $httpErrorObj.ErrorDetails = $streamReaderResponse
             }
         }
 
-        if ($ErrorObject.FriendlyMessage -like "*500 Internal Server Error*")
-        {
+        if ($ErrorObject.FriendlyMessage -like "*500 Internal Server Error*") {
             $httpErrorObj.FriendlyMessage += " $(httpErrorObj.ErrorDetails)"
         }
 
@@ -159,9 +158,9 @@ try {
     # Verify if the account must be updated
     $soapbody = New-SoapbodyFindEmployee -account $account
     $response = Invoke-Nedap-AEOSRestMethod   -SoapBody $soapbody
-    $employeeInfo=$null;
+    $employeeInfo = $null;
     if ($null -ne $Response.Envelope.Body) {
-        foreach ($Item in  $Response.Envelope.Body.EmployeeList){
+        foreach ($Item in  $Response.Envelope.Body.EmployeeList) {
             if ($Item.employee.EmployeeInfo.Id -eq $account.Id) {
                 $employeeInfo = $Item.employee.EmployeeInfo
                 break
@@ -191,7 +190,8 @@ try {
                 IsError = $false
             })
     }
-} catch {
+}
+catch {
     $success = $false
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
@@ -199,7 +199,8 @@ try {
         $errorObj = Resolve-Nedap-AEOSError -ErrorObject $ex
         $auditMessage = "Could not enable Nedap-AEOS account. Error: $($errorObj.FriendlyMessage)"
         Write-Verbose "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-    } else {
+    }
+    else {
         $auditMessage = "Could not enable Nedap-AEOS account. Error: $($ex.Exception.Message)"
         Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
@@ -207,8 +208,9 @@ try {
             Message = $auditMessage
             IsError = $true
         })
-# End
-} finally {
+    # End
+}
+finally {
     $result = [PSCustomObject]@{
         Success   = $success
         Auditlogs = $auditLogs
