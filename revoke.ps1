@@ -48,11 +48,13 @@ try {
         $action = 'Found'
         $dryRunMessage = "Revoke Nedap-AEOS entitlement: [$($pRef.DisplayName)] to: [$($p.DisplayName)] will be executed during enforcement"
 
-    } catch {
+    }
+    catch {
         if ($($_.ErrorDetails -match 'Carrier not found' )) {
             $action = 'NotFound'
             $dryRunMessage = "Nedap-AEOS account for: [$($p.DisplayName)] not found. Possibily already deleted. Skipping action"
-        } else {
+        }
+        else {
             throw $_
 
         }
@@ -72,7 +74,8 @@ try {
                 write-verbose "Templates currently assigned [$($responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationOnline.TemplateAuthorisation.TemplateId -join ', ')]"
                 if ($pRef.Reference -notin $responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationOnline.TemplateAuthorisation.TemplateId  ) {
                     Write-Verbose "[$($pRef.DisplayName)] Already removed, no action required"
-                } else {
+                }
+                else {
                     # Create a warning when an identical template is assigned multiple times. (Bug in Webservice)
                     $templates = $responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationOnline.TemplateAuthorisation | Where-Object { $_.TemplateId -eq $pref.Reference }
                     if (($templates | Measure-Object).count -gt 1) {
@@ -120,18 +123,21 @@ try {
         }
         $success = $true
     }
-} catch {
+}
+catch {
     Write-Verbose "Error at Line '$($PSItem.InvocationInfo.ScriptLineNumber)': $($PSItem.InvocationInfo.Line). Error: $($PSItem.Exception.Message) $($PSItem.ErrorDetails)" -verbose
     if ([string]::IsNullOrEmpty($PSItem.ErrorDetails)) {
         $auditMessage = "Could not revoke Nedap-AEOS account. Error: $($PSItem.Exception.Message)"
-    } else {
+    }
+    else {
         $auditMessage = "Could not grant Nedap-AEOS account. Error: $($PSItem.ErrorDetails)"
     }
     $auditLogs.Add([PSCustomObject]@{
             Message = $auditMessage
             IsError = $true
         })
-} finally {
+}
+finally {
     $result = [PSCustomObject]@{
         Success   = $success
         Auditlogs = $auditLogs

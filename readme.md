@@ -101,10 +101,9 @@ No special Prerequisites.
     # ' -f ($templates | Select-Object -First 1).DateFrom
 ```
 
+It is possible to update the account in the target system during the correlation process, this behavior is disabled. Meaning, the account will only be created or correlated.
 
-A new functionality is the possibility to update the account in the target system during the correlation process. By default, this behavior is disabled. Meaning, the account will only be created or correlated.
-
-You can change this behavior in the `create.ps1` by setting the boolean `$updatePerson` to the value of `$true`.
+You can change this behavior in the `configuration` by enabling the toggle `UpdateOnCorrelate`.
 
 > Be aware that this might have unexpected implications.
 
@@ -117,7 +116,7 @@ No special configuration required
 
 > _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-Configure-a-custom-PowerShell-target-system) pages_
 
-> _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com)_
+> _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com/forum/helloid-connectors/provisioning/1235-helloid-conn-prov-target-nedap-aeos)_
 
 ## HelloID docs
 

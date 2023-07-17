@@ -52,7 +52,8 @@ try {
                 }
             }) | ConvertTo-Json
     }
-} catch {
+}
+catch {
     Write-Verbose "$($PSItem.errordetails.message)" -Verbose
     Write-Verbose "Error at Line '$($PSItem.InvocationInfo.ScriptLineNumber)': $($PSItem.InvocationInfo.Line). Error: $($PSItem.Exception.Message)" -Verbose
 }

@@ -11,10 +11,10 @@ $success = $false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
 
 $now = (Get-Date).ToUniversalTime()
-$dateFormat ="yyyy-MM-ddTHH:mm:ss"
+$dateFormat = "yyyy-MM-ddTHH:mm:ss"
 
 $account = [PSCustomObject]@{
-    Id = $aRef
+    Id            = $aRef
     LeaveDateTime = $now.ToString($dateFormat)  # 2018-11-25T15:44:07 <!-- XSD DateTime data type format -->   2049-06-09T17:15:04+02:00 <!-- UTC+2 -->
 }
 
@@ -35,7 +35,7 @@ function New-SoapbodyDisableEmployee {
         [PSCustomObject] $Account
     )
     $root = "sch:EmployeeChange"
-    Write-output ('<{1}>{0}</{1}>' -f $( $Account.PSObject.Properties.foreach{if($_.Name -eq "Id" -or $_.Name -eq "LeaveDateTime"){'  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value}} -join "`n") , $root)
+    Write-output ('<{1}>{0}</{1}>' -f $( $Account.PSObject.Properties.foreach{ if ($_.Name -eq "Id" -or $_.Name -eq "LeaveDateTime") { '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value } } -join "`n") , $root)
 }
 
 function New-SoapBodyFindCarrierToken {
@@ -108,10 +108,10 @@ function Invoke-Nedap-AEOSRestMethod {
             $null = $BodySB.Append('</soapenv:Envelope>')
 
             $splatParams = @{
-                Uri    = $Uri
-                Method = $Method
+                Uri         = $Uri
+                Method      = $Method
                 ContentType = $ContentType
-                Body = $BodySB.ToString()
+                Body        = $BodySB.ToString()
             }
             if ($Headers) {
                 Write-Verbose 'Adding Headers to request'
@@ -150,20 +150,19 @@ function Resolve-Nedap-AEOSError {
             $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
         }
         elseif ($null -eq $ErrorObject.Exception.Response) {
-                $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
+            $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
         }
         else {
             $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
-            if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)){
+            if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)) {
                 $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
             }
-            else{
+            else {
                 $httpErrorObj.ErrorDetails = $streamReaderResponse
             }
         }
 
-        if ($ErrorObject.FriendlyMessage -like "*500 Internal Server Error*")
-        {
+        if ($ErrorObject.FriendlyMessage -like "*500 Internal Server Error*") {
             $httpErrorObj.FriendlyMessage += " $(httpErrorObj.ErrorDetails)"
         }
 
@@ -179,9 +178,9 @@ try {
     # Verify if the account must be updated
     $soapbody = New-SoapbodyFindEmployee -account $account
     $response = Invoke-Nedap-AEOSRestMethod   -SoapBody $soapbody
-    $employeeInfo=$null;
+    $employeeInfo = $null;
     if ($null -ne $Response.Envelope.Body) {
-        foreach ($Item in  $Response.Envelope.Body.EmployeeList){
+        foreach ($Item in  $Response.Envelope.Body.EmployeeList) {
             if ($Item.employee.EmployeeInfo.Id -eq $account.Id) {
                 $employeeInfo = $Item.employee.EmployeeInfo
                 break
@@ -191,9 +190,9 @@ try {
     # Make sure to fail the action if the account does not exist in the target system!
     if ($null -eq $employeeInfo) {
         $auditLogs.Add([PSCustomObject]@{
-             Message = "Nedap-AEOS account for: [$($p.DisplayName)]  with Nedap Id [$aRef] not found. Possibily already deleted. Skipping action"
-             IsError = $false
-        })
+                Message = "Nedap-AEOS account for: [$($p.DisplayName)]  with Nedap Id [$aRef] not found. Possibily already deleted. Skipping action"
+                IsError = $false
+            })
     }
     else {
         <# Action when all if and elseif conditions are false #>
@@ -209,12 +208,11 @@ try {
             Write-Verbose "Disabling Nedap-AEOS account with accountReference: [$aRef]"
             $soapBody = New-SoapBodyFindCarrierToken -CarrierId $EmployeeInfo.Id
             $response = Invoke-Nedap-AEOSRestMethod -SoapBody $Soapbody
-            $identifier=$null;
+            $identifier = $null;
             if ($null -ne $Response.Envelope.Body) {
-                foreach ($Item in  $Response.Envelope.Body.IdentifierList){
+                foreach ($Item in  $Response.Envelope.Body.IdentifierList) {
                     $identifier = $Item.Identifier
-                    if ($null -ne $identifier )
-                    {
+                    if ($null -ne $identifier ) {
                         $soapBody = New-SoapBodyWithdrawCarierToken -Identifier $identifier
                         $response = Invoke-Nedap-AEOSRestMethod -SoapBody $Soapbody
                     }
@@ -226,15 +224,16 @@ try {
 
             $success = $true
             $auditLogs.Add([PSCustomObject]@{
-                Message = 'Disable account was successful'
-                IsError = $false
+                    Message = 'Disable account was successful'
+                    IsError = $false
 
 
-            })
+                })
         }
     }
 
-} catch {
+}
+catch {
     $success = $false
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
@@ -242,7 +241,8 @@ try {
         $errorObj = Resolve-Nedap-AEOSError -ErrorObject $ex
         $auditMessage = "Could not disable Nedap-AEOS account. Error: $($errorObj.FriendlyMessage)"
         Write-Verbose "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-    } else {
+    }
+    else {
         $auditMessage = "Could not disable Nedap-AEOS account. Error: $($ex.Exception.Message)"
         Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
@@ -250,8 +250,9 @@ try {
             Message = $auditMessage
             IsError = $true
         })
-# End
-} finally {
+    # End
+}
+finally {
     $result = [PSCustomObject]@{
         Success   = $success
         Auditlogs = $auditLogs
