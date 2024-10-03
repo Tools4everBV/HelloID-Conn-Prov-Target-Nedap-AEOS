@@ -1,10 +1,10 @@
 Met behulp van de Nedap AEOS Target Connector verbind je Nedap AEOS via de Identity & Access Management (IAM)-oplossing HelloID van Tools4ever aan de bronsystemen die je gebruikt. De integratie met de webgebaseerde toepassing voor toegangscontrole tilt de fysieke beveiliging van je pand(en) en bezittingen naar een hoger niveau. Zo zorgt de koppeling onder meer dat nieuwe werknemers automatisch  de juiste toegangsrechten toegekend krijgen, en daardoor altijd de juiste ruimtes kunnen betreden. In dit artikel lees je meer over de mogelijkheden en voordelen van de Nedap AEOS Target Connector. 
 
-# Wat is Nedap AEOS ?
+## Wat is Nedap AEOS ?
 
 Nedap AEOS zorgt niet alleen dat de juiste personen tot de juiste deuren en ruimtes toegang hebben, maar maakt ook doelgerichte monitoring mogelijk. Zo geeft het platform actuele informatie over de beveiligingssituatie, en slaat bijvoorbeeld alarm indien een deur te lang blijft openstaan of bij technische gebreken. Je bepaalt zelf hoe je op dergelijke meldingen reageert; dit kan automatisch maar ook handmatig. Zo kan je vooraf instructies opstellen die bepalen hoe op een specifiek alarm gereageerd moet worden. Zo stel je zeker dat alle AEOS-gebruikers daarbij hetzelfde beleid volgen.
 
-# Waarom is Nedap AEOS koppeling handig?
+## Waarom is Nedap AEOS koppeling handig?
 
 Om optimaal hun werk uit te kunnen voeren hebben werknemers toegang nodig tot de juiste ruimtes. Indien een nieuwe medewerker aan de slag gaat, wil je deze toegang dan ook zo snel mogelijk regelen zodat de nieuwe werknemer direct productief kan zijn. Tegelijkertijd wil je zeker stellen dat werknemers die uit dienst treden geen toegang meer hebben tot ruimtes, en hun toegangsrechten tijdig intrekken. Dankzij de koppeling tussen je bronsystemen en Nedap AEOS via HelloID heb je hiernaar geen omkijken. 
 
@@ -15,7 +15,7 @@ Met behulp van de Nedap AEOS connector zijn integraties met diverse veelvoorkome
 
 Meer informatie over deze integraties vind je verderop in dit artikel.
 
-# Hoe HelloID integreert met Nedap AEOS
+## Hoe HelloID integreert met Nedap AEOS
 
 Nedap AEOS koppelt als doelsysteem aan HelloID. De IAM-oplossing spreekt daarbij de SOAP API van Nedap aan. Via deze API kan HelloID onder meer gebruikersaccounts aanmaken, gegevens updaten en hen aan de juiste toegangstemplate toewijzen. Zo regelt de oplossing snel en efficiënt de juiste toegangsrechten in voor een nieuwe gebruiker. Indien nodig kan HelloID een account ook loskoppelen van een toegangstemplate. Het beheer van deze templates vindt plaats via business rules. Via de API kan HelloID ook onder meer inzichtelijk maken welke toegangsbadges aan een specifieke gebruiker zijn toegekend. 
 
@@ -30,7 +30,7 @@ Op basis van je brongegevens kan HelloID een toegangstemplate van Nedap AEOS kop
 
 Een gebruiker in Nedap AEOS is voorzien van een aantal standaardvelden. De connector vult deze velden in aan de hand van gegevens uit je bronsysteem. Uitzonderingen hierop zijn met de Nedap AEOS Target Connector niet mogelijk.
 
-# HelloID voor Nedap AEOS helpt je met
+## HelloID voor Nedap AEOS helpt je met
 
 * **Het versnellen van accountaanmaak:** Dankzij de integratie maak je Nedap AEOS-accounts voor nieuwe medewerkers sneller aan. HelloID detecteert automatisch mutaties in je bronsysteem, en merkt dan ook op indien een nieuwe medewerker in dienst treedt. In dit geval maakt de IAM-oplossing in Nedap AEOS automatisch het benodigde account aan, zodat je eenvoudig de benodigde badge kunt toewijzen. Zo krijgt de werknemer direct vanaf de eerste werkdag toegang tot het kantoorpand en de benodigde ruimtes. 
 
@@ -39,7 +39,7 @@ Een gebruiker in Nedap AEOS is voorzien van een aantal standaardvelden. De conne
 * **Het verbeteren van je serviceniveau en beveiliging:** Met behulp van de integratie til je zowel je serviceniveau als beveiliging naar een hoger niveau. Zo zorg je dat werknemers altijd op het juiste moment over de juiste fysieke toegang beschikken, wat de gebruikerstevredenheid verhoogt en waardoor je werknemers optimaal ondersteunt. Tegelijkertijd versterk je de fysieke beveiliging door ongeautoriseerde toegang actief tegen te gaan. Niet alleen door het tijdig blokkeren van de toegang van uitgestroomde werknemers, maar ook door bijvoorbeeld het snel deactiveren van verloren toegangsmiddelen. 
 
 
-# Nedap AEOS via HelloID koppelen met systemen
+## Nedap AEOS via HelloID koppelen met systemen
 
 HelloID maakt het integreren van diverse systemen met Nedap AEOS mogelijk. De integraties verbeteren en versterken het beheer van gebruikersaccounts en autorisaties, onder meer dankzij consistente processen en automatisering. Enkele voorbeelden van veelvoorkomende integraties zijn: 
 
