@@ -1,7 +1,7 @@
-#################################################
-# HelloID-Conn-Prov-Target-Nedap-AEOS-Enable
+############################################################
+# HelloID-Conn-Prov-Target-Nedap-AEOS-Permissions-TemplateAuthorisation
 # PowerShell V2
-#################################################
+############################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -38,39 +38,6 @@ function Resolve-NedapAEOSError {
         }
         Write-Output $httpErrorObj
     }
-}
-
-function New-SoapBodyEnableEmployee {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]$Id
-    )
-    $now = (Get-Date).ToUniversalTime()
-    $dateFormat = "yyyy-MM-ddTHH:mm:ss"
-
-    $root = "sch:EmployeeChange"
-    $body = "  <sch:Id>$Id</sch:Id>`n"
-    $body += "  <sch:ArrivalDateTime>$($now.ToString($dateFormat))</sch:ArrivalDateTime>`n"
-    $body += "  <sch:LeaveDateTime>2099-01-01T00:00:00</sch:LeaveDateTime>"
-
-    Write-Output "<$root>`n$body`n</$root>"
-}
-
-function New-SoapBodyFindEmployeeById {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]$Id
-    )
-    [system.text.StringBuilder]$soapFindEmployee = [system.text.StringBuilder]::new()
-    $null = $soapFindEmployee.Append('<sch:EmployeeSearchInfo>')
-    $null = $soapFindEmployee.Append('<sch:EmployeeInfo>')
-    $null = $soapFindEmployee.Append("<sch:Id>$Id</sch:Id>")
-    $null = $soapFindEmployee.Append('</sch:EmployeeInfo>')
-    $null = $soapFindEmployee.Append('</sch:EmployeeSearchInfo>')
-
-    Write-Output $soapFindEmployee.ToString()
 }
 
 function Invoke-NedapAEOSRestMethod {
@@ -115,75 +82,47 @@ function Invoke-NedapAEOSRestMethod {
         }
     }
 }
-
-
 #endregion
 
 try {
-    # Verify if [aRef] has a value
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw 'The account reference could not be found'
-    }
-
     # Setup credentials
     $securePassword = $actionContext.Configuration.Password | ConvertTo-SecureString -AsPlainText -Force
     $credential = [System.Management.Automation.PSCredential]::new($actionContext.Configuration.UserName, $securePassword)
-    Write-Information 'Verifying if a Nedap-AEOS account exists'
-    $soapBody = New-SoapBodyFindEmployeeById -Id $actionContext.References.Account
-    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-    $correlatedAccount = $response.Envelope.Body.EmployeeList.Employee.EmployeeInfo
+    Write-Information 'Retrieving authorization templates from Nedap-AEOS'
 
-    if ($null -ne $correlatedAccount) {
-        $action = 'EnableAccount'
-    } else {
-        $action = 'NotFound'
-    }
+    # SOAP body to search for OnLine authorization templates
+    [xml]$body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.nedap.com/aeosws/schema">
+        <soapenv:Header/>
+        <soapenv:Body>
+            <sch:TemplateSearchInfo>
+                <sch:TemplateInfo>
+                    <sch:UnitOfAuthType>OnLine</sch:UnitOfAuthType>
+                </sch:TemplateInfo>
+            </sch:TemplateSearchInfo>
+        </soapenv:Body>
+        </soapenv:Envelope>'
 
-    # Process
-    switch ($action) {
-        'EnableAccount' {
-            if (-not($actionContext.DryRun -eq $true)) {
-                Write-Information "Enabling Nedap-AEOS account with accountReference: [$($actionContext.References.Account)]"
-
-                $soapBody = New-SoapBodyEnableEmployee -Id $actionContext.References.Account
-                $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-            } else {
-                Write-Information "[DryRun] Enable Nedap-AEOS account with accountReference: [$($actionContext.References.Account)], will be executed during enforcement"
+    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $body.Envelope.Body.InnerXML -Credential $credential
+    $retrievedPermissions = $response.envelope.body.templateList.Template
+    foreach ($permission in $retrievedPermissions) {
+        $outputContext.Permissions.Add(
+            @{
+                DisplayName    = $permission.Name
+                Identification = @{
+                    Reference = $permission.Id
+                }
             }
-
-            $outputContext.Success = $true
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Message = 'Enable account was successful'
-                    IsError = $false
-                })
-            break
-        }
-
-        'NotFound' {
-            Write-Information "Nedap-AEOS account: [$($actionContext.References.Account)] could not be found, indicating that it may have been deleted"
-            $outputContext.Success = $false
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Message = "Nedap-AEOS account: [$($actionContext.References.Account)] could not be found, indicating that it may have been deleted"
-                    IsError = $true
-                })
-            break
-        }
+        )
     }
 
+    Write-Information "Found [$($retrievedPermissions.Count)] authorization templates"
 } catch {
-    $outputContext.success = $false
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
-        $auditLogMessage = "Could not enable Nedap-AEOS account. Error: $($errorObj.FriendlyMessage)"
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
     } else {
-        $auditLogMessage = "Could not enable Nedap-AEOS account. Error: $($_.Exception.Message)"
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
-    $outputContext.AuditLogs.Add([PSCustomObject]@{
-            Message = $auditLogMessage
-            IsError = $true
-        })
 }

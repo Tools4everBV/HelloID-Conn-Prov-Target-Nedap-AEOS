@@ -26,28 +26,8 @@
         "defaultValue": "https://<server ip>/aeosws",
         "templateOptions": {
             "label": "BaseUrl",
-            "description": "The URL to the API.",
+            "description": "The URL to the SOAP API (e.g., https://<server ip>/aeosws)",
             "required": true
-        }
-    },
-    {
-        "key": "UpdateOnCorrelate",
-        "type": "checkbox",
-        "defaultValue": true,
-        "templateOptions": {
-            "label": "Update Person when correlating",
-            "description": "This will update the AEOS employee in the create action (not just correlate).",
-            "required": false
-        }
-    },
-    {
-        "key": "IsDebug",
-        "type": "checkbox",
-        "defaultValue": true,
-        "templateOptions": {
-            "label": "Toggle debug logging",
-            "description": "When toggled, debug logging will be displayed",
-            "required": false
         }
     }
 ]
