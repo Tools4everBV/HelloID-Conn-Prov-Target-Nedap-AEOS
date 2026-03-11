@@ -92,36 +92,37 @@ try {
     $credential = [System.Management.Automation.PSCredential]::new($actionContext.Configuration.UserName, $securePassword)
 
     # Get all Permissions/Templates (details)
-    [xml]$body = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.nedap.com/aeosws/schema">
-        <soapenv:Header/>
-        <soapenv:Body>
-            <sch:TemplateSearchInfo>
-                <sch:TemplateInfo>
-                    <sch:UnitOfAuthType>OnLine</sch:UnitOfAuthType>
-                </sch:TemplateInfo>
-            </sch:TemplateSearchInfo>
-        </soapenv:Body>
-        </soapenv:Envelope>'
-    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $body.Envelope.Body.InnerXML -Credential $credential
-    $permissionDetails = $response.envelope.body.templateList.Template
+    $body = "<sch:TemplateSearchInfo><sch:TemplateInfo><sch:UnitOfAuthType>OnLine</sch:UnitOfAuthType></sch:TemplateInfo></sch:TemplateSearchInfo>"
+    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $body -Credential $credential
+    $permissionDetails = $response.Envelope.Body.TemplateList.Template
     $permissionDetailsGrouped = $permissionDetails | Group-Object -Property id -AsHashTable -AsString
 
     # Get all Employees
-    $soapBody = '<sch:EmployeeSearchInfo><sch:EmployeeInfo></sch:EmployeeInfo></sch:EmployeeSearchInfo>'
-    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-    $importedAccounts = $response.Envelope.Body.EmployeeList.Employee.EmployeeInfo
+
+    # AEOS returns maximum of 1000 accounts per call, if there are more accounts in AEOS, pagination is needed. 
+    $existingAccounts = @()
+    $startRecordNo = 0
+    $nrOfRecords = 1000
+
+    do {
+        $soapBody = "<sch:EmployeeSearchInfo><sch:EmployeeInfo></sch:EmployeeInfo><sch:SearchRange><sch:startRecordNo>$startRecordNo</sch:startRecordNo><sch:nrOfRecords>$nrOfRecords</sch:nrOfRecords></sch:SearchRange></sch:EmployeeSearchInfo>"
+        $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
+        $importedAccounts = $response.Envelope.Body.EmployeeList.Employee.EmployeeInfo
+        $existingAccounts += $importedAccounts
+        $startRecordNo += $nrOfRecords
+    } while ($importedAccounts.Count -eq $nrOfRecords)
 
     # Iterate through Employees and get their permissions
-    foreach ($importedAccount in $importedAccounts) {
+    foreach ($importedAccount in $existingAccounts) {
         $bodyGetCarrierProfiles = "<sch:CarrierIdProfile>$($importedAccount.id)</sch:CarrierIdProfile>"
         $responseCarrierIdProfile = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $bodyGetCarrierProfiles -Credential $credential
 
-        foreach ($importedPermission in $responseCarrierIdProfile.AuthorisationOnline.TemplateAuthorisation) {
-            # Write-Information "Found TemplateId: $($importedPermission.id) for CarrierId: $($importedAccount.id)"
-            $templateDetails = $permissionDetailsGrouped["$($importedPermission.id)"]
+        foreach ($importedPermission in $responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationOnline.TemplateAuthorisation) {
+            Write-Information "Found TemplateId: $($importedPermission.TemplateId) for CarrierId: $($importedAccount.id)"
+            $templateDetails = $permissionDetailsGrouped["$($importedPermission.TemplateId)"]
             $permission = @{
                 PermissionReference = @{
-                    Reference = $importedPermission.id
+                    Reference = "$($importedPermission.TemplateId)"
                 }
                 Description         = "$($templateDetails.Description)"
                 DisplayName         = "$($templateDetails.Name)"

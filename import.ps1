@@ -91,12 +91,22 @@ try {
     $securePassword = $actionContext.Configuration.Password | ConvertTo-SecureString -AsPlainText -Force
     $credential = [System.Management.Automation.PSCredential]::new($actionContext.Configuration.UserName, $securePassword)
 
-    $soapBody = '<sch:EmployeeSearchInfo><sch:EmployeeInfo></sch:EmployeeInfo></sch:EmployeeSearchInfo>'
-    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-    $importedAccounts = $response.Envelope.Body.EmployeeList.Employee.EmployeeInfo
+
+    # AEOS returns maximum of 1000 accounts per call, if there are more accounts in AEOS, pagination is needed. 
+    $existingAccounts = @()
+    $startRecordNo = 0
+    $nrOfRecords = 1000
+
+    do {
+        $soapBody = "<sch:EmployeeSearchInfo><sch:EmployeeInfo></sch:EmployeeInfo><sch:SearchRange><sch:startRecordNo>$startRecordNo</sch:startRecordNo><sch:nrOfRecords>$nrOfRecords</sch:nrOfRecords></sch:SearchRange></sch:EmployeeSearchInfo>"
+        $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
+        $importedAccounts = $response.Envelope.Body.EmployeeList.Employee.EmployeeInfo
+        $existingAccounts += $importedAccounts
+        $startRecordNo += $nrOfRecords
+    } while ($importedAccounts.Count -eq $nrOfRecords)
 
     $currentTime = (Get-Date)
-    foreach ($importedAccount in $importedAccounts) {
+    foreach ($importedAccount in $existingAccounts) {
         # Making sure only fieldMapping fields are imported
         $data = @{}
         foreach ($field in $actionContext.ImportFields) {
@@ -121,9 +131,14 @@ try {
             $displayName = $importedAccount.Id
         }
 
+        # Check if there is an attribute Email
+        $emailProp = $importedAccount.PSObject.Properties['Email']
+        $email = if ($null -ne $emailProp) { [string]$emailProp.Value } else { $null }
+
         # Make sure the userName has a value
-        if ([string]::IsNullOrWhiteSpace($importedAccount.Email)) {
-            $importedAccount.Email = $importedAccount.Id
+        if ([string]::IsNullOrWhiteSpace($email)) {
+            $importedAccount | Add-Member -MemberType NoteProperty -Name 'Email' -Value $null -Force
+            $importedAccount.Email = "$($importedAccount.Id)"
         }
 
         # Return the result
@@ -135,7 +150,7 @@ try {
             Data             = $data
         }
     }
-    Write-Information 'Nedap-AEOS account entitlement import completed'
+    Write-Information "Nedap-AEOS account entitlement import completed. Total accounts imported: [$($existingAccounts.Count)]"
 } catch {
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
