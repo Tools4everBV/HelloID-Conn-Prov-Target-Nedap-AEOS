@@ -99,6 +99,8 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 The account reference is populated with the `Id` property from _Nedap-AEOS_ (the employee ID).
 
 ## Remarks
+> [!IMPORTANT]
+> The import functionality for Account Access should not be used when taking this connector into production. The enable action should be executed because only then the LeaveDateTime will be set for the existing accounts. Otherwise the extensions of the contracts are not handled correctly. The LeaveDateTime is **only** set in the enable and disable event of the lifecycle. 
 
 ### Account lifecycle
 
