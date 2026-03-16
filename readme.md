@@ -56,7 +56,7 @@ The following features are available:
 ### HelloID Icon URL
 URL of the icon used for the HelloID Provisioning target system.
 ```
-https://www.tools4ever.nl/assets/connectors/helloid-conn-prov-target-nedap-aeos.png
+https://raw.githubusercontent.com/Tools4everBV/HelloID-Conn-Prov-Target-Nedap-AEOS/refs/heads/main/Icon.png
 ```
 
 ### Requirements
@@ -99,6 +99,8 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 The account reference is populated with the `Id` property from _Nedap-AEOS_ (the employee ID).
 
 ## Remarks
+> [!IMPORTANT]
+> The import functionality for Account Access should not be used when taking this connector into production. The enable action should be executed because only then the LeaveDateTime will be set for the existing accounts. Otherwise the extensions of the contracts are not handled correctly. The LeaveDateTime is **only** set in the enable and disable event of the lifecycle. 
 
 ### Account lifecycle
 
@@ -178,8 +180,7 @@ The AEOS SOAP Web Service documentation is available as a PDF from Nedap. Contac
 > [!TIP]
 > _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems.html) pages_.
 
-> [!TIP]
->  _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com/forum/helloid-connectors/provisioning/1235-helloid-conn-prov-target-nedap-aeos)_.
+
 ## HelloID docs
 
 The official HelloID documentation can be found at: https://docs.helloid.com/
