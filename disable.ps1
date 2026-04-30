@@ -171,8 +171,8 @@ try {
 
                 $identifier = $null
                 if ($null -ne $Response.Envelope.Body) {
-                    foreach ($Item in  $Response.Envelope.Body.IdentifierList) {
-                        $identifier = $Item.Identifier
+                    foreach ($Item in  $Response.Envelope.Body.IdentifierList.Identifier) {
+                        $identifier = $Item
                         if ($null -ne $identifier) {
                             $soapBody = New-SoapBodyWithdrawCarrierToken -Identifier $identifier
                             $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential

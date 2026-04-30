@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [1.0.2] - 15-12-2025
+
+### Fixed
+ - If a users has more then one badge (carrier), the code didn't work.
+
 ## [1.0.1] - 10-03-2026
 
 Small adjustments after implementation of this connector after drycoded conversion to PSV2. 
