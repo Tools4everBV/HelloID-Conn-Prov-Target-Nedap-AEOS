@@ -23,13 +23,16 @@ function Resolve-NedapAEOSError {
         }
         if (-not [string]::IsNullOrWhiteSpace($ErrorObject.ErrorDetails.Message)) {
             $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
-        } elseif ($null -eq $ErrorObject.Exception.Response) {
+        } 
+        elseif ($null -eq $ErrorObject.Exception.Response) {
             $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-        } else {
+        } 
+        else {
             $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
             if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)) {
                 $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-            } else {
+            } 
+            else {
                 $httpErrorObj.ErrorDetails = $streamReaderResponse
             }
         }
@@ -55,6 +58,7 @@ function Invoke-NedapAEOSRestMethod {
         [string]
         $ContentType = 'text/xml; charset=UTF-8',
 
+        [System.Management.Automation.PSCredential]
         $Credential
     )
     process {
@@ -73,10 +77,11 @@ function Invoke-NedapAEOSRestMethod {
                 ContentType = $ContentType
                 Body        = $BodySB.ToString()
             }
-            Write-Information "$($BodySB.ToString())"
+
             $Response = Invoke-RestMethod @splatParams -Verbose:$false -Credential $Credential
             Write-Output $Response
-        } catch {
+        } 
+        catch {
             $PSCmdlet.ThrowTerminatingError($_)
         }
     }
@@ -98,21 +103,50 @@ function New-SoapBodyFindEmployeeByPersonnelNo {
     Write-Output $soapFindEmployee.ToString()
 }
 
+function New-SoapBodyAllDepartments {
+    [CmdletBinding()]
+    param ()
+
+    [system.text.StringBuilder]$soapFindDepartment = [system.text.StringBuilder]::new()
+    $null = $soapFindDepartment.Append('<sch:DepartmentSearchInfo>')
+    $null = $soapFindDepartment.Append('<sch:DepartmentInfo>')
+    $null = $soapFindDepartment.Append('</sch:DepartmentInfo>')
+    $null = $soapFindDepartment.Append('</sch:DepartmentSearchInfo>')
+
+    Write-Output $soapFindDepartment.ToString()
+}
+
 function New-SoapBodyAddEmployee {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory)]
         [PSCustomObject]$Account
     )
+
+        # Get the free fields in the right order
+    $freeFields = @($Account.PSObject.Properties.Name | Where-Object { $_ -like 'Freefield*' })
+
+    if ($freeFields.Count -eq 0) {
+        $freeFields = @('Freefield')
+    }
+
     $root = 'sch:EmployeeAdd'
-    $sortOrderEmployee =  @(
-        'Id', 'NetworkId', 'CarrierType', 'UnitId', 'ArrivalDateTime', 'LeaveDateTime', 'NrMovements', 'ReadOnly',
-        'FreeField', 'LastName', 'PersonnelNo', 'FirstName', 'MiddleName', 'Gender', 'Title', 'PhoneNo',
+    $sortOrderEmployee = @(
+        'Id', 'NetworkId', 'CarrierType', 'UnitId', 'ArrivalDateTime', 'LeaveDateTime', 'NrMovements', 'ReadOnly'
+    ) + @($freeFields) + @(
+        'LastName', 'PersonnelNo', 'FirstName', 'MiddleName', 'Gender', 'Title', 'PhoneNo',
         'Language', 'MobilePhoneNo', 'Email', 'ContactPersonId', 'DepartmentId'
     )
     $sortedAccount = $Account | Select-Object ($sortOrderEmployee | Where-Object { $account.PSObject.Properties.Name -contains $_ })
-    Write-Output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ if ($_.Name -ne "Id") { '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value } } -join "`n") , $root)
-}
+    
+    Write-output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ 
+        if($_.Name -like 'Freefield*') {
+            '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield',''), $_.Value 
+        } 
+        elseif ($_.Name -ne "Id") { 
+            '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
+        }
+    } -join "`n") , $root)}
 #endregion
 
 try {
@@ -147,7 +181,8 @@ try {
 
     if ($null -eq $correlatedAccount) {
         $action = 'CreateAccount'
-    } else {
+    } 
+    else {
         $action = 'CorrelateAccount'
     }
 
@@ -159,15 +194,32 @@ try {
     # Process
     switch ($action) {
         'CreateAccount' {
+            # retrieve departmentId first using the departmentName
+            $departmentName = $actionContext.Data.DepartmentName
+            $soapBodyDepartment = New-SoapBodyAllDepartments 
+            $responseDepartment = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBodyDepartment -Credential $credential
+            $allDepartments = $responseDepartment.Envelope.Body.DepartmentList.Department
+
+            $departmentToUse = $allDepartments | Where-Object { $_.Name -eq $departmentName}
+            if ($null -eq $departmentToUse) {
+                throw "Department [$departmentName] not found in AEOS"
+            }
+            else {
+                $actionContext.Data | Add-Member @{
+                    DepartmentId = $departmentToUse.Id
+                } -Force
+            }
+
             # Make sure to test with special characters and if needed; add utf8 encoding.
             $soapBody = New-SoapBodyAddEmployee -Account $actionContext.Data
             if (-not($actionContext.DryRun -eq $true)) {
-                Write-Information 'Creating and correlating Nedap-AEOS account'
+                Write-Information 'Creating Nedap-AEOS account'
                 $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
                 $outputContext.Data = $response.Envelope.Body.EmployeeResult | Select-Object -Property $outputContext.Data.PSObject.Properties.Name
                 $outputContext.AccountReference = $response.Envelope.Body.EmployeeResult.Id
-            } else {
-                Write-Information '[DryRun] Create and correlate Nedap-AEOS account, will be executed during enforcement'
+            } 
+            else {
+                Write-Information '[DryRun] Create Nedap-AEOS account, will be executed during enforcement'
             }
             $auditLogMessage = "Create account was successful. AccountReference is: [$($outputContext.AccountReference)]"
             break
@@ -175,9 +227,14 @@ try {
 
         'CorrelateAccount' {
             Write-Information 'Correlating Nedap-AEOS account'
-            $outputContext.Data = $correlatedAccount | Select-Object -Property $outputContext.Data.PSObject.Properties.Name
-            $outputContext.AccountReference = $correlatedAccount.Id
-            $outputContext.AccountCorrelated = $true
+            if (-not($actionContext.DryRun -eq $true)) {
+                $outputContext.Data = $correlatedAccount | Select-Object -Property $outputContext.Data.PSObject.Properties.Name
+                $outputContext.AccountReference = $correlatedAccount.Id
+                $outputContext.AccountCorrelated = $true
+            }
+            else {
+                Write-Information '[DryRun] Correlate Nedap-AEOS account, will be executed during enforcement'
+            }
             $auditLogMessage = "Correlated account: [$($outputContext.AccountReference)] on field: [$($correlationField)] with value: [$($correlationValue)]"
             break
         }
@@ -189,7 +246,8 @@ try {
             Message = $auditLogMessage
             IsError = $false
         })
-} catch {
+} 
+catch {
     $outputContext.success = $false
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
@@ -197,7 +255,8 @@ try {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
         $auditLogMessage = "Could not create or correlate Nedap-AEOS account. Error: $($errorObj.FriendlyMessage)"
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-    } else {
+    } 
+    else {
         $auditLogMessage = "Could not create or correlate Nedap-AEOS account. Error: $($ex.Exception.Message)"
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
