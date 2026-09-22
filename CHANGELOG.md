@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [1.0.3] - 14-09-2026
+
+### Added
+- support for freefields
+- support for resolving departmentId using departmentName
+- support for KeyCabinet authorization template (untested)
+- supportscript for retrieving definitionId's
+
+### Changed
+- moved withdrawal of carrier token(s) to the delete event instead of disable event
+
+### Fixed
+- in the update event, make sure the Id is supplied correctly
+
 ## [1.0.2] - 15-12-2025
 
 ### Fixed

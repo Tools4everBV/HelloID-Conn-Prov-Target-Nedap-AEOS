@@ -1,5 +1,5 @@
 ############################################################
-# HelloID-Conn-Prov-Target-Nedap-AEOS-Permissions-TemplateAuthorisation
+# HelloID-Conn-Prov-Target-Nedap-AEOS-Permissions-TemplateAuthorisationOnLine
 # PowerShell V2
 ############################################################
 
@@ -23,13 +23,16 @@ function Resolve-NedapAEOSError {
         }
         if (-not [string]::IsNullOrWhiteSpace($ErrorObject.ErrorDetails.Message)) {
             $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
-        } elseif ($null -eq $ErrorObject.Exception.Response) {
+        } 
+        elseif ($null -eq $ErrorObject.Exception.Response) {
             $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-        } else {
+        } 
+        else {
             $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
             if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)) {
                 $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-            } else {
+            } 
+            else {
                 $httpErrorObj.ErrorDetails = $streamReaderResponse
             }
         }
@@ -77,7 +80,8 @@ function Invoke-NedapAEOSRestMethod {
 
             $Response = Invoke-RestMethod @splatParams -Verbose:$false -Credential $Credential
             Write-Output $Response
-        } catch {
+        } 
+        catch {
             $PSCmdlet.ThrowTerminatingError($_)
         }
     }
@@ -116,13 +120,15 @@ try {
     }
 
     Write-Information "Found [$($retrievedPermissions.Count)] authorization templates"
-} catch {
+} 
+catch {
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-    } else {
+    } 
+    else {
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
 }

@@ -23,13 +23,16 @@ function Resolve-NedapAEOSError {
         }
         if (-not [string]::IsNullOrWhiteSpace($ErrorObject.ErrorDetails.Message)) {
             $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
-        } elseif ($null -eq $ErrorObject.Exception.Response) {
+        } 
+        elseif ($null -eq $ErrorObject.Exception.Response) {
             $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-        } else {
+        } 
+        else {
             $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
             if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)) {
                 $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-            } else {
+            } 
+            else {
                 $httpErrorObj.ErrorDetails = $streamReaderResponse
             }
         }
@@ -77,7 +80,8 @@ function Invoke-NedapAEOSRestMethod {
 
             $Response = Invoke-RestMethod @splatParams -Verbose:$false -Credential $Credential
             Write-Output $Response
-        } catch {
+        } 
+        catch {
             $PSCmdlet.ThrowTerminatingError($_)
         }
     }
@@ -99,6 +103,19 @@ function New-SoapBodyFindEmployeeById {
     Write-Output $soapFindEmployee.ToString()
 }
 
+function New-SoapBodyAllDepartments {
+    [CmdletBinding()]
+    param ()
+
+    [system.text.StringBuilder]$soapFindDepartment = [system.text.StringBuilder]::new()
+    $null = $soapFindDepartment.Append('<sch:DepartmentSearchInfo>')
+    $null = $soapFindDepartment.Append('<sch:DepartmentInfo>')
+    $null = $soapFindDepartment.Append('</sch:DepartmentInfo>')
+    $null = $soapFindDepartment.Append('</sch:DepartmentSearchInfo>')
+
+    Write-Output $soapFindDepartment.ToString()
+}
+
 function New-SoapBodyChangeEmployee {
     [CmdletBinding()]
     param (
@@ -108,14 +125,31 @@ function New-SoapBodyChangeEmployee {
         [Parameter(Mandatory)]
         [PSCustomObject] $PropertiesChanged
     )
+
+    # Get the free fields in the right order
+    $freeFields = @($Account.PSObject.Properties.Name | Where-Object { $_ -like 'Freefield*' })
+
+    if ($freeFields.Count -eq 0) {
+        $freeFields = @('Freefield')
+    }
+
     $root = 'sch:EmployeeChange'
     $sortOrderEmployee = @(
-        'Id', 'NetworkId', 'CarrierType', 'UnitId', 'ArrivalDateTime', 'LeaveDateTime', 'NrMovements', 'ReadOnly',
-        'FreeField', 'LastName', 'PersonnelNo', 'FirstName', 'MiddleName', 'Gender', 'Title', 'PhoneNo',
+        'Id', 'NetworkId', 'CarrierType', 'UnitId', 'ArrivalDateTime', 'LeaveDateTime', 'NrMovements', 'ReadOnly'
+    ) + @($freeFields) + @(
+        'LastName', 'PersonnelNo', 'FirstName', 'MiddleName', 'Gender', 'Title', 'PhoneNo',
         'Language', 'MobilePhoneNo', 'Email', 'ContactPersonId', 'DepartmentId'
     )
     $sortedAccount = $Account | Select-Object ($sortOrderEmployee | Where-Object { $account.PSObject.Properties.Name -contains $_ })
-    Write-output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ if ($_.Name -eq "Id" -or ($_.Name -in $propertiesChanged.Name) ) { '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value } } -join "`n") , $root)
+    
+    Write-output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ 
+        if($_.Name -like 'Freefield*' -and ($_.Name -in $propertiesChanged.Name)) {
+            '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield',''), $_.Value 
+        }
+        elseif ($_.Name -eq "Id" -or ($_.Name -in $propertiesChanged.Name)) { 
+            '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
+        }
+    } -join "`n") , $root)
 }
 
 function Get-CurrentAccount {
@@ -128,7 +162,17 @@ function Get-CurrentAccount {
         [PSCustomObject]$CorrelatedAccount
     )
     $CurrentAccount = [PSCustomObject]@{}
-    $null = $Account.PSObject.Properties.foreach{ $CurrentAccount | Add-Member -MemberType NoteProperty  -Name $($_.Name) -Value  $CorrelatedAccount.$($_.Name) }
+    foreach ($property in $Account.PSObject.Properties) {
+        if ($property.Name -notlike 'Freefield*') {
+            $CurrentAccount | Add-Member -MemberType NoteProperty -Name $property.Name -Value $CorrelatedAccount.$($property.Name)
+        }
+    }
+
+    # CorrelatedAccount.Freefield can hold multiple sub-objects, each with a DefinitionId and Value
+    foreach ($freefield in $CorrelatedAccount.Freefield) {
+        $CurrentAccount | Add-Member -MemberType NoteProperty -Name "Freefield$($freefield.DefinitionId)" -Value $freefield.Value
+    }
+
     Write-Output $CurrentAccount
 }
 #endregion
@@ -152,18 +196,36 @@ try {
         $correlatedAccount = Get-CurrentAccount -Account $actionContext.Data -CorrelatedAccount $correlatedAccountXml
         $outputContext.PreviousData = $correlatedAccount | Select-Object -Property $actionContext.Data.PSObject.Properties.Name
 
+        # retrieve departmentId first using the departmentName
+        $departmentName = $actionContext.Data.DepartmentName
+        $soapBodyDepartment = New-SoapBodyAllDepartments
+        $responseDepartment = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBodyDepartment -Credential $credential
+        $allDepartments = $responseDepartment.Envelope.Body.DepartmentList.Department
+
+        $departmentToUse = $allDepartments | Where-Object { $_.Name -eq $departmentName}
+        if ($null -eq $departmentToUse) {
+            throw "Department [$departmentName] not found in AEOS"
+        }
+        else {
+            $actionContext.Data | Add-Member @{
+                DepartmentId = $departmentToUse.Id
+            } -Force
+        }
+
         # Always compare the account against the current account in target system
         $splatCompareProperties = @{
             ReferenceObject  = @($correlatedAccount.PSObject.Properties)
-            DifferenceObject = @($actionContext.Data.PSObject.Properties)
+            DifferenceObject = @($actionContext.Data.PSObject.Properties | Where-Object { $_.Name -ne 'DepartmentName' }) #TBD --> test
         }
         $propertiesChanged = Compare-Object @splatCompareProperties -PassThru | Where-Object { $_.SideIndicator -eq '=>' }
         if ($propertiesChanged) {
             $action = 'UpdateAccount'
-        } else {
+        } 
+        else {
             $action = 'NoChanges'
         }
-    } else {
+    } 
+    else {
         $action = 'NotFound'
     }
 
@@ -176,11 +238,14 @@ try {
                 Write-Information "Updating Nedap-AEOS account with accountReference: [$($actionContext.References.Account)]"
 
                 $actionContext.Data | Add-Member @{
-                    id = $actionContext.References.Account
+                    Id = $actionContext.References.Account
                 } -Force
+
                 $soapBody = New-SoapBodyChangeEmployee -Account $actionContext.Data -PropertiesChanged $propertiesChanged
                 $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-            } else {
+                $outputContext.Data = $response.Envelope.Body.EmployeeResult | Select-Object -Property $outputContext.Data.PSObject.Properties.Name
+            } 
+            else {
                 Write-Information "[DryRun] Update Nedap-AEOS account with accountReference: [$($actionContext.References.Account)], will be executed during enforcement"
             }
 
@@ -194,6 +259,7 @@ try {
 
         'NoChanges' {
             Write-Information "No changes to Nedap-AEOS account with accountReference: [$($actionContext.References.Account)]"
+            $outputContext.Data = $outputContext.PreviousData
             $outputContext.Success = $true
             break
         }
@@ -208,7 +274,8 @@ try {
             break
         }
     }
-} catch {
+} 
+catch {
     $outputContext.Success = $false
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
@@ -216,7 +283,8 @@ try {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
         $auditLogMessage = "Could not update Nedap-AEOS account. Error: $($errorObj.FriendlyMessage)"
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-    } else {
+    } 
+    else {
         $auditLogMessage = "Could not update Nedap-AEOS account. Error: $($ex.Exception.Message)"
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }

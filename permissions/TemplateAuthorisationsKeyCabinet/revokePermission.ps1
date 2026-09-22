@@ -1,7 +1,7 @@
-#################################################
-# HelloID-Conn-Prov-Target-Nedap-AEOS-Enable
+#################################################################
+# HelloID-Conn-Prov-Target-Nedap-AEOS-RevokePermission-TemplateAuthorisationKeyCabinet
 # PowerShell V2
-#################################################
+#################################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -41,39 +41,6 @@ function Resolve-NedapAEOSError {
         }
         Write-Output $httpErrorObj
     }
-}
-
-function New-SoapBodyEnableEmployee {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]$Id
-    )
-    $now = (Get-Date).ToUniversalTime()
-    $dateFormat = "yyyy-MM-ddTHH:mm:ss"
-
-    $root = "sch:EmployeeChange"
-    $body = "  <sch:Id>$Id</sch:Id>`n"
-    $body += "  <sch:ArrivalDateTime>$($now.ToString($dateFormat))</sch:ArrivalDateTime>`n"
-    $body += "  <sch:LeaveDateTime>2099-01-01T00:00:00</sch:LeaveDateTime>"
-
-    Write-Output "<$root>`n$body`n</$root>"
-}
-
-function New-SoapBodyFindEmployeeById {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]$Id
-    )
-    [system.text.StringBuilder]$soapFindEmployee = [system.text.StringBuilder]::new()
-    $null = $soapFindEmployee.Append('<sch:EmployeeSearchInfo>')
-    $null = $soapFindEmployee.Append('<sch:EmployeeInfo>')
-    $null = $soapFindEmployee.Append("<sch:Id>$Id</sch:Id>")
-    $null = $soapFindEmployee.Append('</sch:EmployeeInfo>')
-    $null = $soapFindEmployee.Append('</sch:EmployeeSearchInfo>')
-
-    Write-Output $soapFindEmployee.ToString()
 }
 
 function Invoke-NedapAEOSRestMethod {
@@ -119,10 +86,9 @@ function Invoke-NedapAEOSRestMethod {
         }
     }
 }
-
-
 #endregion
 
+# Begin
 try {
     # Verify if [aRef] has a value
     if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
@@ -132,50 +98,80 @@ try {
     # Setup credentials
     $securePassword = $actionContext.Configuration.Password | ConvertTo-SecureString -AsPlainText -Force
     $credential = [System.Management.Automation.PSCredential]::new($actionContext.Configuration.UserName, $securePassword)
-    Write-Information 'Verifying if a Nedap-AEOS account exists'
-    $soapBody = New-SoapBodyFindEmployeeById -Id $actionContext.References.Account
-    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-    $correlatedAccount = $response.Envelope.Body.EmployeeList.Employee.EmployeeInfo
+    Write-Information 'Verifying if a Nedap-AEOS account exists and checking current permissions'
 
-    if ($null -ne $correlatedAccount) {
-        $action = 'EnableAccount'
+    # Get current carrier profile to check if permission exists
+    try {
+        $bodyGetCarrierProfiles = "<sch:CarrierIdProfile>$($actionContext.References.Account)</sch:CarrierIdProfile>"
+        $responseCarrierIdProfile = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $bodyGetCarrierProfiles -Credential $credential
+
+        $action = 'RevokePermission'
     } 
-    else {
-        $action = 'NotFound'
+    catch {
+        if ($($_.ErrorDetails -match 'Carrier not found')) {
+            $action = 'NotFound'
+        } 
+        else {
+            throw $_
+        }
     }
 
     # Process
     switch ($action) {
-        'EnableAccount' {
-            if (-not($actionContext.DryRun -eq $true)) {
-                Write-Information "Enabling Nedap-AEOS account with accountReference: [$($actionContext.References.Account)]"
+        'RevokePermission' {
+            Write-Information "Revoking Nedap-AEOS permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)]"
 
-                $soapBody = New-SoapBodyEnableEmployee -Id $actionContext.References.Account
-                $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
+            # Check if permission is currently assigned
+            $currentTemplates = @($responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationKeyCabinet.KeyTemplateAuthorisation.TemplateId)
+            if ($actionContext.References.Permission.Reference -notin $currentTemplates) {
+                Write-Information "Permission [$($actionContext.PermissionDisplayName)] is already removed"
             } 
             else {
-                Write-Information "[DryRun] Enable Nedap-AEOS account with accountReference: [$($actionContext.References.Account)], will be executed during enforcement"
-            }
+                # Create a warning when an identical template is assigned multiple times (Bug in Webservice)
+                $templates = $responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationKeyCabinet.KeyTemplateAuthorisation | Where-Object { $_.TemplateId -eq $actionContext.References.Permission.Reference }
+                if (($templates | Measure-Object).count -gt 1) {
+                    throw "TemplateId [$($actionContext.References.Permission.Reference)] is assigned multiple times to this user. Cannot be processed."
+                }
 
+                [xml]$bodyRemoveAuth = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.nedap.com/aeosws/schema">
+                        <soapenv:Header/>
+                        <soapenv:Body>
+                            <sch:ProfileRemove>
+                            <sch:CarrierId></sch:CarrierId>
+                            <sch:AuthorisationKeyCabinetId>
+                                <sch:KeyTemplateAuthorisation>
+                                    <sch:TemplateId></sch:TemplateId>
+                                </sch:KeyTemplateAuthorisation>
+                            </sch:AuthorisationKeyCabinetId>
+                            </sch:ProfileRemove>
+                        </soapenv:Body>
+                        </soapenv:Envelope>'
+
+                $bodyRemoveAuth.Envelope.Body.ProfileRemove.CarrierId = "$($actionContext.References.Account)"
+                $bodyRemoveAuth.Envelope.Body.ProfileRemove.AuthorisationKeyCabinetId.KeyTemplateAuthorisation.TemplateId = "$($actionContext.References.Permission.Reference)"
+                if (-not($actionContext.DryRun -eq $true)) {
+                    $null = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $bodyRemoveAuth.Envelope.Body.InnerXML -Credential $credential
+                } 
+                else {
+                    Write-Information "[DryRun] Revoke Nedap-AEOS permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)], will be executed during enforcement"
+                }
+            }
             $outputContext.Success = $true
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Message = 'Enable account was successful'
+                    Message = "Revoke permission [$($actionContext.PermissionDisplayName)] from [$($actionContext.References.Account)] was successful. Action initiated by: [$($actionContext.Origin)]"
+                    IsError = $false
+                })
+        }
+        'NotFound' {
+            Write-Information "Nedap-AEOS account: [$($actionContext.References.Account)] could not be found, indicating that it may have been deleted"
+            $outputContext.Success = $true
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    Message = "Nedap-AEOS account: [$($actionContext.References.Account)] could not be found, indicating that it may have been deleted. Action initiated by: [$($actionContext.Origin)]"
                     IsError = $false
                 })
             break
         }
-
-        'NotFound' {
-            Write-Information "Nedap-AEOS account: [$($actionContext.References.Account)] could not be found, indicating that it may have been deleted"
-            $outputContext.Success = $false
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Message = "Nedap-AEOS account: [$($actionContext.References.Account)] could not be found, indicating that it may have been deleted"
-                    IsError = $true
-                })
-            break
-        }
     }
-
 } 
 catch {
     $outputContext.success = $false
@@ -183,11 +179,11 @@ catch {
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
-        $auditLogMessage = "Could not enable Nedap-AEOS account. Error: $($errorObj.FriendlyMessage)"
+        $auditLogMessage = "Could not revoke Nedap-AEOS permission. Error: $($errorObj.FriendlyMessage). Action initiated by: [$($actionContext.Origin)]"
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
     } 
     else {
-        $auditLogMessage = "Could not enable Nedap-AEOS account. Error: $($ex.Exception.Message)"
+        $auditLogMessage = "Could not revoke Nedap-AEOS permission. Error: $($ex.Exception.Message). Action initiated by: [$($actionContext.Origin)]"
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
     $outputContext.AuditLogs.Add([PSCustomObject]@{

@@ -1,7 +1,7 @@
-#################################################
-# HelloID-Conn-Prov-Target-Nedap-AEOS-Enable
+################################################################
+# HelloID-Conn-Prov-Target-Nedap-AEOS-GrantPermission-TemplateAuthorisationsKeyCabinet
 # PowerShell V2
-#################################################
+################################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -41,39 +41,6 @@ function Resolve-NedapAEOSError {
         }
         Write-Output $httpErrorObj
     }
-}
-
-function New-SoapBodyEnableEmployee {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]$Id
-    )
-    $now = (Get-Date).ToUniversalTime()
-    $dateFormat = "yyyy-MM-ddTHH:mm:ss"
-
-    $root = "sch:EmployeeChange"
-    $body = "  <sch:Id>$Id</sch:Id>`n"
-    $body += "  <sch:ArrivalDateTime>$($now.ToString($dateFormat))</sch:ArrivalDateTime>`n"
-    $body += "  <sch:LeaveDateTime>2099-01-01T00:00:00</sch:LeaveDateTime>"
-
-    Write-Output "<$root>`n$body`n</$root>"
-}
-
-function New-SoapBodyFindEmployeeById {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)]
-        [string]$Id
-    )
-    [system.text.StringBuilder]$soapFindEmployee = [system.text.StringBuilder]::new()
-    $null = $soapFindEmployee.Append('<sch:EmployeeSearchInfo>')
-    $null = $soapFindEmployee.Append('<sch:EmployeeInfo>')
-    $null = $soapFindEmployee.Append("<sch:Id>$Id</sch:Id>")
-    $null = $soapFindEmployee.Append('</sch:EmployeeInfo>')
-    $null = $soapFindEmployee.Append('</sch:EmployeeSearchInfo>')
-
-    Write-Output $soapFindEmployee.ToString()
 }
 
 function Invoke-NedapAEOSRestMethod {
@@ -119,10 +86,9 @@ function Invoke-NedapAEOSRestMethod {
         }
     }
 }
-
-
 #endregion
 
+# Begin
 try {
     # Verify if [aRef] has a value
     if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
@@ -132,37 +98,67 @@ try {
     # Setup credentials
     $securePassword = $actionContext.Configuration.Password | ConvertTo-SecureString -AsPlainText -Force
     $credential = [System.Management.Automation.PSCredential]::new($actionContext.Configuration.UserName, $securePassword)
-    Write-Information 'Verifying if a Nedap-AEOS account exists'
-    $soapBody = New-SoapBodyFindEmployeeById -Id $actionContext.References.Account
-    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-    $correlatedAccount = $response.Envelope.Body.EmployeeList.Employee.EmployeeInfo
+    Write-Information 'Verifying if a Nedap-AEOS account exists and checking current permissions'
+    try {
+        # Get current carrier profile to check if permission already exists
+        $bodyGetCarrierProfiles = "<sch:CarrierIdProfile>$($actionContext.References.Account)</sch:CarrierIdProfile>"
+        $responseCarrierIdProfile = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $bodyGetCarrierProfiles -Credential $credential
 
-    if ($null -ne $correlatedAccount) {
-        $action = 'EnableAccount'
+        $action = 'GrantPermission'
     } 
-    else {
-        $action = 'NotFound'
+    catch {
+        if ($($_.ErrorDetails -match 'Carrier not found')) {
+            $action = 'NotFound'
+        } 
+        else {
+            throw $_
+        }
     }
 
     # Process
     switch ($action) {
-        'EnableAccount' {
-            if (-not($actionContext.DryRun -eq $true)) {
-                Write-Information "Enabling Nedap-AEOS account with accountReference: [$($actionContext.References.Account)]"
-
-                $soapBody = New-SoapBodyEnableEmployee -Id $actionContext.References.Account
-                $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
+        'GrantPermission' {
+            # Check if permission is already granted
+            if ($responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationKeyCabinet.TemplateAuthorisation.TemplateId -contains $actionContext.References.Permission.Reference) {
+                Write-Information "[$($actionContext.PermissionDisplayName)] Already granted, no action required"
             } 
             else {
-                Write-Information "[DryRun] Enable Nedap-AEOS account with accountReference: [$($actionContext.References.Account)], will be executed during enforcement"
-            }
+                Write-Information "Granting Nedap-AEOS permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)]"
+                [xml]$bodyAddAuth = '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sch="http://www.nedap.com/aeosws/schema">
+                   <soapenv:Header/>
+                   <soapenv:Body>
+                      <sch:ProfileAdd>
+                         <sch:CarrierId></sch:CarrierId>
+                         <sch:AuthorisationKeyCabinet>
+                            <sch:KeyTemplateAuthorisation>
+                               <sch:Enabled></sch:Enabled>
+                               <sch:TemplateId></sch:TemplateId>
+                               <sch:DateFrom></sch:DateFrom>
+                            </sch:KeyTemplateAuthorisation>
+                         </sch:AuthorisationKeyCabinet>
+                      </sch:ProfileAdd>
+                   </soapenv:Body>
+                </soapenv:Envelope>'
 
+                $profileAdd = $bodyAddAuth.Envelope.Body.ProfileAdd
+                $template = $profileAdd.AuthorisationKeyCabinet.KeyTemplateAuthorisation
+
+                $profileAdd.CarrierId = "$($actionContext.References.Account)"
+                $template.Enabled = 'true'
+                $template.TemplateId = "$($actionContext.References.Permission.Reference)"
+                $template.DateFrom = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
+                if (-not($actionContext.DryRun -eq $true)) {
+                    $null = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $bodyAddAuth.Envelope.Body.InnerXML -Credential $credential
+                } 
+                else {
+                    Write-Information "[DryRun] Grant Nedap-AEOS permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)], will be executed during enforcement"
+                }
+            }
             $outputContext.Success = $true
             $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    Message = 'Enable account was successful'
+                    Message = "Grant permission [$($actionContext.PermissionDisplayName)] was successful"
                     IsError = $false
                 })
-            break
         }
 
         'NotFound' {
@@ -175,7 +171,6 @@ try {
             break
         }
     }
-
 } 
 catch {
     $outputContext.success = $false
@@ -183,11 +178,11 @@ catch {
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
-        $auditLogMessage = "Could not enable Nedap-AEOS account. Error: $($errorObj.FriendlyMessage)"
+        $auditLogMessage = "Could not grant Nedap-AEOS permission. Error: $($errorObj.FriendlyMessage)"
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
     } 
     else {
-        $auditLogMessage = "Could not enable Nedap-AEOS account. Error: $($ex.Exception.Message)"
+        $auditLogMessage = "Could not grant Nedap-AEOS permission. Error: $($ex.Exception.Message)"
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
     $outputContext.AuditLogs.Add([PSCustomObject]@{
