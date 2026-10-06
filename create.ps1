@@ -123,7 +123,7 @@ function New-SoapBodyAddEmployee {
         [PSCustomObject]$Account
     )
 
-        # Get the free fields in the right order
+    # Get the free fields in the right order
     $freeFields = @($Account.PSObject.Properties.Name | Where-Object { $_ -like 'Freefield*' })
 
     if ($freeFields.Count -eq 0) {
@@ -140,13 +140,14 @@ function New-SoapBodyAddEmployee {
     $sortedAccount = $Account | Select-Object ($sortOrderEmployee | Where-Object { $account.PSObject.Properties.Name -contains $_ })
     
     Write-output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ 
-        if($_.Name -like 'Freefield*') {
-            '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield',''), $_.Value 
-        } 
-        elseif ($_.Name -ne "Id") { 
-            '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
-        }
-    } -join "`n") , $root)}
+                if ($_.Name -like 'Freefield*') {
+                    '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield', ''), $_.Value 
+                } 
+                elseif ($_.Name -ne "Id") { 
+                    '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
+                }
+            } -join "`n") , $root)
+}
 #endregion
 
 try {
@@ -194,20 +195,22 @@ try {
     # Process
     switch ($action) {
         'CreateAccount' {
-            # retrieve departmentId first using the departmentName
-            $departmentName = $actionContext.Data.DepartmentName
-            $soapBodyDepartment = New-SoapBodyAllDepartments 
-            $responseDepartment = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBodyDepartment -Credential $credential
-            $allDepartments = $responseDepartment.Envelope.Body.DepartmentList.Department
+            if ($actionContext.Data.PSObject.Properties.Name -contains 'DepartmentName') {
+                # retrieve departmentId first using the departmentName
+                $departmentName = $actionContext.Data.DepartmentName
+                $soapBodyDepartment = New-SoapBodyAllDepartments 
+                $responseDepartment = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBodyDepartment -Credential $credential
+                $allDepartments = $responseDepartment.Envelope.Body.DepartmentList.Department
 
-            $departmentToUse = $allDepartments | Where-Object { $_.Name -eq $departmentName}
-            if ($null -eq $departmentToUse) {
-                throw "Department [$departmentName] not found in AEOS"
-            }
-            else {
-                $actionContext.Data | Add-Member @{
-                    DepartmentId = $departmentToUse.Id
-                } -Force
+                $departmentToUse = $allDepartments | Where-Object { $_.Name -eq $departmentName }
+                if ($null -eq $departmentToUse) {
+                    throw "Department [$departmentName] not found in AEOS"
+                }
+                else {
+                    $actionContext.Data | Add-Member @{
+                        DepartmentId = $departmentToUse.Id
+                    } -Force
+                }
             }
 
             # Make sure to test with special characters and if needed; add utf8 encoding.

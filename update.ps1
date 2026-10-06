@@ -143,13 +143,13 @@ function New-SoapBodyChangeEmployee {
     $sortedAccount = $Account | Select-Object ($sortOrderEmployee | Where-Object { $account.PSObject.Properties.Name -contains $_ })
     
     Write-output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ 
-        if($_.Name -like 'Freefield*' -and ($_.Name -in $propertiesChanged.Name)) {
-            '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield',''), $_.Value 
-        }
-        elseif ($_.Name -eq "Id" -or ($_.Name -in $propertiesChanged.Name)) { 
-            '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
-        }
-    } -join "`n") , $root)
+                if ($_.Name -like 'Freefield*' -and ($_.Name -in $propertiesChanged.Name)) {
+                    '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield', ''), $_.Value 
+                }
+                elseif ($_.Name -eq "Id" -or ($_.Name -in $propertiesChanged.Name)) { 
+                    '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
+                }
+            } -join "`n") , $root)
 }
 
 function Get-CurrentAccount {
@@ -196,26 +196,28 @@ try {
         $correlatedAccount = Get-CurrentAccount -Account $actionContext.Data -CorrelatedAccount $correlatedAccountXml
         $outputContext.PreviousData = $correlatedAccount | Select-Object -Property $actionContext.Data.PSObject.Properties.Name
 
-        # retrieve departmentId first using the departmentName
-        $departmentName = $actionContext.Data.DepartmentName
-        $soapBodyDepartment = New-SoapBodyAllDepartments
-        $responseDepartment = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBodyDepartment -Credential $credential
-        $allDepartments = $responseDepartment.Envelope.Body.DepartmentList.Department
+        if ($actionContext.Data.PSObject.Properties.Name -contains 'DepartmentName') {
+            # retrieve departmentId first using the departmentName
+            $departmentName = $actionContext.Data.DepartmentName
+            $soapBodyDepartment = New-SoapBodyAllDepartments
+            $responseDepartment = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBodyDepartment -Credential $credential
+            $allDepartments = $responseDepartment.Envelope.Body.DepartmentList.Department
 
-        $departmentToUse = $allDepartments | Where-Object { $_.Name -eq $departmentName}
-        if ($null -eq $departmentToUse) {
-            throw "Department [$departmentName] not found in AEOS"
-        }
-        else {
-            $actionContext.Data | Add-Member @{
-                DepartmentId = $departmentToUse.Id
-            } -Force
+            $departmentToUse = $allDepartments | Where-Object { $_.Name -eq $departmentName }
+            if ($null -eq $departmentToUse) {
+                throw "Department [$departmentName] not found in AEOS"
+            }
+            else {
+                $actionContext.Data | Add-Member @{
+                    DepartmentId = $departmentToUse.Id
+                } -Force
+            }
         }
 
         # Always compare the account against the current account in target system
         $splatCompareProperties = @{
             ReferenceObject  = @($correlatedAccount.PSObject.Properties)
-            DifferenceObject = @($actionContext.Data.PSObject.Properties | Where-Object { $_.Name -ne 'DepartmentName' }) #TBD --> test
+            DifferenceObject = @($actionContext.Data.PSObject.Properties | Where-Object { $_.Name -ne 'DepartmentName' })
         }
         $propertiesChanged = Compare-Object @splatCompareProperties -PassThru | Where-Object { $_.SideIndicator -eq '=>' }
         if ($propertiesChanged) {

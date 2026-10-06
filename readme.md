@@ -7,7 +7,7 @@
 > This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.
 
 <p align="center">
-  <img src="https://www.tools4ever.nl/assets/connectors/helloid-conn-prov-target-nedap-aeos.png">
+   <img src="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-Nedap-AEOS/blob/main/Logo.png?raw=true">
 </p>
 
 ## Table of contents
@@ -42,14 +42,14 @@ _HelloID-Conn-Prov-Target-Nedap-AEOS_ is a _target_ connector. _Nedap-AEOS_ prov
 
 The following features are available:
 
-| Feature                                   | Supported | Actions                         | Remarks                          |
-| ----------------------------------------- | --------- | ------------------------------- | -------------------------------- |
-| **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete | Delete does 'not' delete the account. We do the disable action again.                                  |
-| **Permissions**                           | ✅         | Retrieve, Grant, Revoke         | Based on authorization templates, currently supported: OnLine & KeyCabinet |
-| **Resources**                             | ❌         | -                               |                                  |
-| **Entitlement Import: Accounts**          | ✅         | -                               |                                  |
-| **Entitlement Import: Permissions**       | ✅         | -                               |                                  |
-| **Governance Reconciliation Resolutions** | ✅         | -                               | Beware, account will not be deleted. Filter on attribute needed if account needs to be filtered in the import.                                  |
+| Feature                                   | Supported | Actions                                 | Remarks                                                                                                        |
+| ----------------------------------------- | --------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete | Delete does 'not' delete the account. We do the disable action again.                                          |
+| **Permissions**                           | ✅         | Retrieve, Grant, Revoke                 | Based on authorization templates, currently supported: OnLine (door templates) & KeyCabinet                    |
+| **Resources**                             | ❌         | -                                       |                                                                                                                |
+| **Entitlement Import: Accounts**          | ✅         | -                                       |                                                                                                                |
+| **Entitlement Import: Permissions**       | ✅         | -                                       |                                                                                                                |
+| **Governance Reconciliation Resolutions** | ✅         | -                                       | Beware, account will not be deleted. Filter on attribute needed if account needs to be filtered in the import. |
 
 ## Getting started
 
@@ -69,10 +69,10 @@ https://raw.githubusercontent.com/Tools4everBV/HelloID-Conn-Prov-Target-Nedap-AE
 
 The following settings are required to connect to the API.
 
-| Setting  | Description                                                  | Mandatory |
-| -------- | ------------------------------------------------------------ | --------- |
-| UserName | The UserName to connect to the SOAP API                      | Yes       |
-| Password | The Password to connect to the SOAP API                      | Yes       |
+| Setting  | Description                                               | Mandatory |
+| -------- | --------------------------------------------------------- | --------- |
+| UserName | The UserName to connect to the SOAP API                   | Yes       |
+| Password | The Password to connect to the SOAP API                   | Yes       |
 | BaseUrl  | The URL to the SOAP API (e.g., https://[serverip]/aeosws) | Yes       |
 
 ### Correlation configuration
@@ -117,7 +117,7 @@ The account reference is populated with the `Id` property from _Nedap-AEOS_ (the
 
 ### Permissions
 Permissions are based on authorization templates in AEOS:
-- The permissions script retrieves all OnLine and KeyCabinet authorization templates using the `findTemplate` endpoint with `UnitOfAuthType=OnLine` and `UnitOfAuthType=KeyCabinet`.
+- The permissions script retrieves all OnLine (door templates) and KeyCabinet authorization templates using the `findTemplate` endpoint with `UnitOfAuthType=OnLine` and `UnitOfAuthType=KeyCabinet`.
   - `WARNING`: KeyCabinet authorization template only available from version AEOS 2023 and later. This part of permissions is currently untested and drycoded following the instructions of an AEOS consultant
 - Grant permission assigns an authorization template to an employee using the `addCarrierAuthorizations` endpoint.
 - Revoke permission removes an authorization template assignment using the `removeCarrierAuthorizations` endpoint.
