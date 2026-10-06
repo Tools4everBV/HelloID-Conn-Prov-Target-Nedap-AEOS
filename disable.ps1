@@ -23,13 +23,16 @@ function Resolve-NedapAEOSError {
         }
         if (-not [string]::IsNullOrWhiteSpace($ErrorObject.ErrorDetails.Message)) {
             $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
-        } elseif ($null -eq $ErrorObject.Exception.Response) {
+        } 
+        elseif ($null -eq $ErrorObject.Exception.Response) {
             $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-        } else {
+        } 
+        else {
             $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
             if ( [string]::IsNullOrWhiteSpace($streamReaderResponse)) {
                 $httpErrorObj.ErrorDetails = $ErrorObject.Exception.Message
-            } else {
+            } 
+            else {
                 $httpErrorObj.ErrorDetails = $streamReaderResponse
             }
         }
@@ -77,7 +80,8 @@ function Invoke-NedapAEOSRestMethod {
 
             $Response = Invoke-RestMethod @splatParams -Verbose:$false -Credential $Credential
             Write-Output $Response
-        } catch {
+        } 
+        catch {
             $PSCmdlet.ThrowTerminatingError($_)
         }
     }
@@ -126,7 +130,6 @@ function New-SoapBodyFindEmployeeById {
     Write-Output $soapFindEmployee.ToString()
 }
 
-
 function New-SoapBodyWithdrawCarrierToken {
     [CmdletBinding()]
     param (
@@ -155,7 +158,8 @@ try {
 
     if ($null -ne $correlatedAccount) {
         $action = 'DisableAccount'
-    } else {
+    } 
+    else {
         $action = 'NotFound'
     }
 
@@ -165,25 +169,26 @@ try {
             if (-not($actionContext.DryRun -eq $true)) {
                 Write-Information "Disabling Nedap-AEOS account with accountReference: [$($actionContext.References.Account)]"
 
-                # Withdraw all carrier tokens (badges) from the employee
-                $soapBody = New-SoapBodyFindCarrierToken -CarrierId $correlatedAccount.Id
-                $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
+                # # Withdraw all carrier tokens (badges) from the employee
+                # $soapBody = New-SoapBodyFindCarrierToken -CarrierId $correlatedAccount.Id
+                # $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
 
-                $identifier = $null
-                if ($null -ne $Response.Envelope.Body) {
-                    foreach ($Item in  $Response.Envelope.Body.IdentifierList.Identifier) {
-                        $identifier = $Item
-                        if ($null -ne $identifier) {
-                            $soapBody = New-SoapBodyWithdrawCarrierToken -Identifier $identifier
-                            $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-                        }
-                    }
-                }
+                # $identifier = $null
+                # if ($null -ne $Response.Envelope.Body) {
+                #     foreach ($Item in  $Response.Envelope.Body.IdentifierList.Identifier) {
+                #         $identifier = $Item
+                #         if ($null -ne $identifier) {
+                #             $soapBody = New-SoapBodyWithdrawCarrierToken -Identifier $identifier
+                #             $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
+                #         }
+                #     }
+                # }
 
                 # Disable the employee by setting LeaveDateTime to current time
                 $soapBody = New-SoapBodyDisableEmployee -Id $actionContext.References.Account
                 $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $soapBody -Credential $credential
-            } else {
+            } 
+            else {
                 Write-Information "[DryRun] Disable Nedap-AEOS account with accountReference: [$($actionContext.References.Account)], will be executed during enforcement"
             }
 
@@ -206,15 +211,16 @@ try {
         }
     }
 } catch {
-    $outputContext.success = $false
+    $outputContext.Success = $false
     $ex = $PSItem
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
         $auditLogMessage = "Could not disable Nedap-AEOS account. Error: $($errorObj.FriendlyMessage). Action initiated by: [$($actionContext.Origin)]"
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-    } else {
-        $auditLogMessage = "Could not disable Nedap-AEOS account. Error: $($_.Exception.Message). Action initiated by: [$($actionContext.Origin)]"
+    } 
+    else {
+        $auditLogMessage = "Could not disable Nedap-AEOS account. Error: $($ex.Exception.Message). Action initiated by: [$($actionContext.Origin)]"
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
     $outputContext.AuditLogs.Add([PSCustomObject]@{

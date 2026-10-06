@@ -1,7 +1,7 @@
-#################################################
-# HelloID-Conn-Prov-Target-Nedap-AEOS-Import
+####################################################################
+# HelloID-Conn-Prov-Target-Nedap-AEOS-ImportPermissions-TemplateAuthorisationOnLine
 # PowerShell V2
-#################################################
+####################################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -89,12 +89,19 @@ function Invoke-NedapAEOSRestMethod {
 #endregion
 
 try {
-    Write-Information 'Starting Nedap-AEOS account entitlement import'
+    Write-Information 'Starting Nedap-AEOS permission TemplateAuthorisationOnLine entitlement import'
 
     # Setup credentials
     $securePassword = $actionContext.Configuration.Password | ConvertTo-SecureString -AsPlainText -Force
     $credential = [System.Management.Automation.PSCredential]::new($actionContext.Configuration.UserName, $securePassword)
 
+    # Get all Permissions/Templates (details)
+    $body = "<sch:TemplateSearchInfo><sch:TemplateInfo><sch:UnitOfAuthType>OnLine</sch:UnitOfAuthType></sch:TemplateInfo></sch:TemplateSearchInfo>"
+    $response = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $body -Credential $credential
+    $permissionDetails = $response.Envelope.Body.TemplateList.Template
+    $permissionDetailsGrouped = $permissionDetails | Group-Object -Property id -AsHashTable -AsString
+
+    # Get all Employees
 
     # AEOS returns maximum of 1000 accounts per call, if there are more accounts in AEOS, pagination is needed. 
     $existingAccounts = @()
@@ -109,54 +116,26 @@ try {
         $startRecordNo += $nrOfRecords
     } while ($importedAccounts.Count -eq $nrOfRecords)
 
-    $currentTime = (Get-Date)
+    # Iterate through Employees and get their permissions
     foreach ($importedAccount in $existingAccounts) {
-        # Making sure only fieldMapping fields are imported
-        $data = @{}
-        foreach ($field in $actionContext.ImportFields) {
-            $data[$field] = $importedAccount.$field
-        }
+        $bodyGetCarrierProfiles = "<sch:CarrierIdProfile>$($importedAccount.id)</sch:CarrierIdProfile>"
+        $responseCarrierIdProfile = Invoke-NedapAEOSRestMethod -Uri $actionContext.Configuration.BaseUrl -SoapBody $bodyGetCarrierProfiles -Credential $credential
 
-        $arrivalDate = $null
-        $leaveDate = $null
-        # Set Enabled based on importedAccount status
-        $isEnabled = $false
-        if ($importedAccount.ArrivalDateTime) {
-            $arrivalDate = [datetime]::Parse($importedAccount.ArrivalDateTime)
-        }
-        if ($importedAccount.LeaveDateTime) {
-            $leaveDate = [datetime]::Parse($importedAccount.LeaveDateTime)
-        }
-        if ($arrivalDate -le $currentTime -and ($null -eq $leaveDate -or $leaveDate -gt $currentTime)) {
-            $isEnabled = $true
-        }
-
-        # Make sure the displayName has a value
-        $displayName = "$($importedAccount.FirstName) $($importedAccount.MiddleName) $($importedAccount.LastName)".trim()
-        if ([string]::IsNullOrEmpty($displayName)) {
-            $displayName = $importedAccount.Id
-        }
-
-        # Check if there is an attribute Email
-        $emailProp = $importedAccount.PSObject.Properties['Email']
-        $email = if ($null -ne $emailProp) { [string]$emailProp.Value } else { $null }
-
-        # Make sure the userName has a value
-        if ([string]::IsNullOrWhiteSpace($email)) {
-            $importedAccount | Add-Member -MemberType NoteProperty -Name 'Email' -Value $null -Force
-            $importedAccount.Email = "$($importedAccount.Id)"
-        }
-
-        # Return the result
-        Write-Output @{
-            AccountReference = $importedAccount.Id
-            displayName      = $displayName
-            UserName         = $importedAccount.Email
-            Enabled          = $isEnabled
-            Data             = $data
+        foreach ($importedPermission in $responseCarrierIdProfile.Envelope.Body.ProfileResult.AuthorisationOnline.TemplateAuthorisation) {
+            Write-Information "Found TemplateId: $($importedPermission.TemplateId) for CarrierId: $($importedAccount.id)"
+            $templateDetails = $permissionDetailsGrouped["$($importedPermission.TemplateId)"]
+            $permission = @{
+                PermissionReference = @{
+                    Reference = "$($importedPermission.TemplateId)"
+                }
+                Description         = "$($templateDetails.Description)"
+                DisplayName         = "$($templateDetails.Name)"
+                AccountReferences   = @($importedAccount.id)
+            }
+            Write-Output $permission
         }
     }
-    Write-Information "Nedap-AEOS account entitlement import completed. Total accounts imported: [$($existingAccounts.Count)]"
+    Write-Information 'Nedap-AEOS permission TemplateAuthorisationOnLine entitlement import completed'
 } 
 catch {
     $ex = $PSItem
@@ -164,10 +143,10 @@ catch {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-NedapAEOSError -ErrorObject $ex
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        Write-Error "Could not import Nedap-AEOS account entitlements. Error: $($errorObj.FriendlyMessage)"
+        Write-Error "Could not import Nedap-AEOS permission TemplateAuthorisationOnLine entitlements. Error: $($errorObj.FriendlyMessage)"
     } 
     else {
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        Write-Error "Could not import Nedap-AEOS account entitlements. Error: $($ex.Exception.Message)"
+        Write-Error "Could not import Nedap-AEOS permission TemplateAuthorisationOnLine entitlements. Error: $($ex.Exception.Message)"
     }
 }
