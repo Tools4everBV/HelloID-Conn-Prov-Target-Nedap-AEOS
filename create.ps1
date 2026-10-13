@@ -141,7 +141,7 @@ function New-SoapBodyAddEmployee {
     
     Write-output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ 
                 if ($_.Name -like 'Freefield*') {
-                    '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield', ''), $_.Value 
+                    '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield', ''), [System.Security.SecurityElement]::Escape($_.Value) 
                 } 
                 elseif ($_.Name -ne "Id") { 
                     '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
