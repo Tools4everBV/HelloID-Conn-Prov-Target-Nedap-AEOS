@@ -144,7 +144,7 @@ function New-SoapBodyChangeEmployee {
     
     Write-output ('<{1}>{0}</{1}>' -f $( $sortedAccount.PSObject.Properties.foreach{ 
                 if ($_.Name -like 'Freefield*' -and ($_.Name -in $propertiesChanged.Name)) {
-                    '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield', ''), $_.Value 
+                    '  <sch:Freefield><sch:DefinitionId>{0}</sch:DefinitionId><sch:value>{1}</sch:value></sch:Freefield>' -f $_.Name.Replace('Freefield', ''), [System.Security.SecurityElement]::Escape($_.Value) 
                 }
                 elseif ($_.Name -eq "Id" -or ($_.Name -in $propertiesChanged.Name)) { 
                     '  <sch:{0}>{1}</sch:{0}>' -f $_.Name, $_.Value 
